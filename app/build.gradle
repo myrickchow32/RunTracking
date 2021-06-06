@@ -1,5 +1,7 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-kapt'
 
 android {
   compileSdkVersion rootProject.ext.compileSdkVersion
@@ -41,6 +43,27 @@ dependencies {
   androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
 
   // TUTORIAL DEPENDENCIES HERE
+  implementation 'com.google.android.gms:play-services-maps:17.0.1'
 
+  // Lifecycle components
+  implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:2.2.0"
+  implementation "androidx.lifecycle:lifecycle-livedata-ktx:2.2.0"
+  implementation "androidx.lifecycle:lifecycle-common-java8:2.2.0"
+
+  // RxPermissions
+  implementation 'com.github.tbruyelle:rxpermissions:0.10.2'
+  implementation 'io.reactivex.rxjava2:rxandroid:2.1.1'
+
+  implementation 'com.google.android.gms:play-services-location:17.0.0'
+
+  // Room
+  def room_version = "2.2.5"
+  implementation "androidx.room:room-runtime:$room_version"
+  kapt "androidx.room:room-compiler:$room_version"
+
+  // Room (optional dependency) - Kotlin Extensions and Coroutines support for Room
+  implementation "androidx.room:room-ktx:$room_version"
+
+  implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.2.0'
 
 }
