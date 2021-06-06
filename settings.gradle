@@ -1,0 +1,2 @@
+rootProject.name='RunTracking'
+include ':app'
