@@ -82,10 +82,8 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     private const val KEY_IS_TRACKING = "com.rwRunTrackingApp.isTracking"
   }
   private var isTracking: Boolean
-    get() = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).getBoolean(
-      KEY_IS_TRACKING, false)
-    set(value) = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).edit().putBoolean(
-      KEY_IS_TRACKING, value).apply()
+    get() = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).getBoolean(KEY_IS_TRACKING, false)
+    set(value) = this.getSharedPreferences(KEY_SHARED_PREFERENCE, Context.MODE_PRIVATE).edit().putBoolean(KEY_IS_TRACKING, value).apply()
 
   private val locationCallback = object: LocationCallback() {
     override fun onLocationResult(locationResult: LocationResult?) {
@@ -154,6 +152,84 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     }
   }
 
+  private fun getTrackingApplicationInstance() = application as TrackingApplication
+  private fun getTrackingRepository() = getTrackingApplicationInstance().trackingRepository
+
+  @SuppressLint("CheckResult")
+  private fun startTracking() {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      RxPermissions(this).request(Manifest.permission.ACTIVITY_RECOGNITION)
+        .subscribe { isGranted ->
+          Log.d("TAG", "Is ACTIVITY_RECOGNITION permission granted: $isGranted")
+          if (isGranted) {
+            setupStepCounterListener()
+          }
+        }
+    } else {
+      setupStepCounterListener()
+    }
+    setupLocationChangeListener()
+  }
+
+  private fun stopTracking() {
+    mapsActivityViewModel.deleteAllTrackingEntity()
+    fusedLocationProviderClient.removeLocationUpdates(locationCallback)
+
+    val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    val stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+    sensorManager.unregisterListener(this, stepCounterSensor)
+  }
+
+  // UI related codes
+  private fun updateButtonStatus() {
+    binding.startButton.isEnabled = !isTracking
+    binding.endButton.isEnabled = isTracking
+  }
+
+  private fun updateAllDisplayText(stepCount: Int, totalDistanceTravelled: Float) {
+    binding.numberOfStepTextView.text =  String.format("Step count: %d", stepCount)
+    binding.totalDistanceTextView.text = String.format("Total distance: %.2fm", totalDistanceTravelled)
+
+    val averagePace = if (stepCount != 0) totalDistanceTravelled / stepCount.toDouble() else 0.0
+    binding.averagePaceTextView.text = String.format("Average pace: %.2fm/ step", averagePace)
+  }
+
+  private fun endButtonClicked() {
+    AlertDialog.Builder(this)
+      .setTitle("Are you sure to stop tracking?")
+      .setPositiveButton("Confirm") { _, _ ->
+        isTracking = false
+        updateButtonStatus()
+        stopTracking()
+      }.setNegativeButton("Cancel") { _, _ ->
+      }
+      .create()
+      .show()
+  }
+
+  // Location related codes
+  @SuppressLint("CheckResult")
+  private fun runWithLocationPermissionChecking(callback: () -> Unit) {
+    RxPermissions(this).request(Manifest.permission.ACCESS_FINE_LOCATION)
+      .subscribe { isGranted ->
+        if (isGranted) {
+          callback()
+        } else {
+          Toast.makeText(this, "Please grant Location permission", Toast.LENGTH_LONG).show()
+        }
+      }
+  }
+
+  @SuppressLint("MissingPermission")
+  private fun setupLocationChangeListener() = runWithLocationPermissionChecking {
+    val locationRequest = LocationRequest()
+    locationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+    locationRequest.interval = 5000 // 5000ms (5s)
+
+    fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+  }
+
+  // Map related codes
   /**
    * Manipulates the map once available.
    * This callback is triggered when the map is ready to be used.
@@ -180,91 +256,19 @@ class MainActivity : AppCompatActivity(), OnMapReadyCallback, SensorEventListene
     mMap.animateCamera(CameraUpdateFactory.newLatLngZoom(hongKongLatLong, zoomLevel))
   }
 
-  private fun getTrackingApplicationInstance() = application as TrackingApplication
-  private fun getTrackingRepository() = getTrackingApplicationInstance().trackingRepository
-
-  private fun updateButtonStatus() {
-    binding.startButton.isEnabled = !isTracking
-    binding.endButton.isEnabled = isTracking
-  }
-
-  private fun updateAllDisplayText(stepCount: Int, totalDistanceTravelled: Float) {
-    binding.numberOfStepTextView.text =  String.format("Step count: %d", stepCount)
-    binding.totalDistanceTextView.text = String.format("Total distance: %.2fm", totalDistanceTravelled)
-
-    val averagePace = if (stepCount != 0) totalDistanceTravelled / stepCount.toDouble() else 0.0
-    binding.averagePaceTextView.text = String.format("Average pace: %.2fm/ step", averagePace)
-  }
-
-  @SuppressLint("CheckResult")
-  private fun startTracking() {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      RxPermissions(this).request(Manifest.permission.ACTIVITY_RECOGNITION)
-        .subscribe { isGranted ->
-          Log.d("TAG", "Is ACTIVITY_RECOGNITION permission granted: $isGranted")
-          if (isGranted) {
-            setupStepCounterListener()
-          }
-        }
-    } else {
-      setupStepCounterListener()
-    }
-    setupLocationChangeListener()
-  }
-
-  private fun stopTracking() {
-    mapsActivityViewModel.deleteAllTrackingEntity()
-    fusedLocationProviderClient.removeLocationUpdates(locationCallback)
-  }
-
-  private fun endButtonClicked() {
-    AlertDialog.Builder(this)
-      .setTitle("Are you sure to stop tracking?")
-      .setPositiveButton("Confirm") { _, _ ->
-        isTracking = false
-        updateButtonStatus()
-        stopTracking()
-      }.setNegativeButton("Cancel") { _, _ ->
-      }
-      .create()
-      .show()
-  }
-
-  private fun setupStepCounterListener() {
-    val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    val stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-    stepCounterSensor ?: return
-    sensorManager.registerListener(this@MainActivity, stepCounterSensor, SensorManager.SENSOR_DELAY_FASTEST)
-  }
-
-  @SuppressLint("CheckResult")
-  private fun runWithLocationPermissionChecking(callback: () -> Unit) {
-    RxPermissions(this).request(Manifest.permission.ACCESS_FINE_LOCATION)
-      .subscribe { isGranted ->
-        if (isGranted) {
-          callback()
-        } else {
-          Toast.makeText(this, "Please grant Location permission", Toast.LENGTH_LONG).show()
-        }
-      }
-  }
-
-  @SuppressLint("MissingPermission")
-  private fun setupLocationChangeListener() {
-    runWithLocationPermissionChecking {
-      val locationRequest = LocationRequest()
-      locationRequest.priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-      locationRequest.interval = 5000 // 5000ms (5s)
-
-      fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-    }
-  }
-
   private fun addLocationToRoute(trackingEntity: TrackingEntity) {
     mMap.clear()
     val newLatLngInstance = trackingEntity.asLatLng()
     polylineOptions.points.add(newLatLngInstance)
     mMap.addPolyline(polylineOptions)
+  }
+
+  // Step Counter related codes
+  private fun setupStepCounterListener() {
+    val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+    val stepCounterSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+    stepCounterSensor ?: return
+    sensorManager.registerListener(this@MainActivity, stepCounterSensor, SensorManager.SENSOR_DELAY_FASTEST)
   }
 
   override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {

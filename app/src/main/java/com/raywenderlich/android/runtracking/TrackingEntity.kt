@@ -14,11 +14,13 @@ data class TrackingEntity(
     @ColumnInfo val latitude: Double,
     @ColumnInfo val longitude: Double
 ) {
-    // The distance in meter between the current Tracking Entity and the previous one in the Room databaase
+    // 4. The distance in meter between the current Tracking Entity and the previous one in the Room database
     @ColumnInfo var distanceTravelled = 0f
 
+    // 5
     fun asLatLng() = LatLng(latitude, longitude)
 
+    // 6
     fun distanceTo(newTrackingEntity: TrackingEntity): Float {
         val locationA = Location("Previous Location")
         locationA.latitude = latitude
